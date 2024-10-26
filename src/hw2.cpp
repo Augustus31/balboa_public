@@ -5,7 +5,7 @@
 using namespace hw2;
 Matrix4x4 createClipMatrix(double s, double a, double f, double near);
 Image3 fill_color(hw1::Shape s, Image3 img, bool antialias, bool alpha);
-Image3 draw_projected_triangle(hw1::Shape s, std::vector<Vector3> orig, Image3 img, Image<double>& zbuf, Image3& zcol, std::vector<Vector3> colors, bool antialias, bool alpha);
+Image3 draw_projected_triangle(hw1::Shape s, std::vector<Vector3> orig, Image3 img, Image<double>& zbuf, Image3& zcol, std::vector<Vector3> colors, bool antialias);
 
 
 Matrix4x4 createClipMatrix(double s, double a, double f, double near){
@@ -13,7 +13,7 @@ Matrix4x4 createClipMatrix(double s, double a, double f, double near){
     return ret;
 }
 
-Image3 draw_projected_triangle(hw1::Shape s, std::vector<Vector3> orig, Image3 img, Image<double>& zbuf, Image3& zcol, std::vector<Vector3> colors, bool antialias, bool alpha){
+Image3 draw_projected_triangle(hw1::Shape s, std::vector<Vector3> orig, Image3 img, Image<double>& zbuf, Image3& zcol, std::vector<Vector3> colors, bool antialias){
     Vector2 res{img.width, img.height};
     if (auto *triangle = std::get_if<hw1::Triangle>(&s)){
         hw1::Triangle &tri = *triangle;
@@ -124,7 +124,7 @@ Image3 draw_projected_triangle(hw1::Shape s, std::vector<Vector3> orig, Image3 i
                             newCol = intCol * Real(1 - (counter/16.0)) + uncBg * Real((counter/16.0));
                         }
                     }
-                    img(x,y) = alpha ? tri.alpha * newCol + (1-tri.alpha) * img(x,y) : newCol;
+                    img(x,y) = newCol;
                 }
                 else{
                     Vector3 inpScreen{Real(x)+0.5,Real(y)+0.5,Real(1)};
@@ -167,11 +167,11 @@ Image3 draw_projected_triangle(hw1::Shape s, std::vector<Vector3> orig, Image3 i
                             zbuf(x, y) = depth;
 
                             if(colors.size() == 0){
-                                img(x,y) = alpha ? tri.alpha * tri.color + (1-tri.alpha) * img(x,y) : tri.color;
+                                img(x,y) = tri.color;
                             }
                             else{
                                 Vector3 newCol = b0 * colors[0] + b1 * colors[1] + b2 * colors[2];
-                                img(x,y) = alpha ? tri.alpha * newCol + (1-tri.alpha) * img(x,y) : newCol;
+                                img(x,y) = newCol;
                             }
                         }
                     }
@@ -319,7 +319,7 @@ Image3 hw_2_2(const std::vector<std::string> &params) {
             std::vector<Vector3> vec{p0, p1, p2};
             std::vector<Vector3> cor;
             hw1::Triangle tri{p0Screen, p1Screen, p2Screen, color, Real(1), Matrix3x3::identity()};
-            img = draw_projected_triangle(tri, vec, img, zbuf, zcol, cor, true, false);
+            img = draw_projected_triangle(tri, vec, img, zbuf, zcol, cor, true);
         }
     }
 
@@ -399,7 +399,7 @@ Image3 hw_2_3(const std::vector<std::string> &params) {
             std::vector<Vector3> vec{p0, p1, p2};
             std::vector<Vector3> cor{c0, c1, c2};
             hw1::Triangle tri{p0Screen, p1Screen, p2Screen, color, Real(1), Matrix3x3::identity()};
-            img = draw_projected_triangle(tri, vec, img, zbuf, zcol, cor, true, false);
+            img = draw_projected_triangle(tri, vec, img, zbuf, zcol, cor, true);
         }
     }
     return img;
@@ -416,12 +416,68 @@ Image3 hw_2_4(const std::vector<std::string> &params) {
 
     Image3 img(scene.camera.resolution.x,
                scene.camera.resolution.y);
+    Image<double> zbuf(img.width * 4, img.height * 4);
+    Image3 zcol(img.width * 4, img.height * 4);
+    
+    Real s = scene.camera.s;
+    Real z_near = scene.camera.z_near;
+    Vector3 bg = scene.background;
 
-    for (int y = 0; y < img.height; y++) {
-        for (int x = 0; x < img.width; x++) {
-            img(x, y) = Vector3{1, 1, 1};
+    Matrix4x4 clip = createClipMatrix(s, (double)img.width/img.height, 1.0, z_near);
+    Matrix4x4 view = inverse(scene.camera.cam_to_world);
+
+    for(TriangleMesh mesh : scene.meshes){
+
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                img(x, y) = bg;
+                for(int i = 0; i < 4; i++){
+                    for(int j = 0; j < 4; j++){
+                        zbuf(x*4 + i, y*4 + j) = -INFINITY;
+                        zcol(x*4 + i, y*4 + j) = bg;
+                    }
+                }
+            }
+        }
+
+        for(int i = 0; i < mesh.faces.size(); i++){
+            Vector3 tri = mesh.faces[i];
+
+            Vector3 p0 = mesh.vertices[tri[0]];
+            Vector3 p1 = mesh.vertices[tri[1]];
+            Vector3 p2 = mesh.vertices[tri[2]];
+
+            Vector3 c0 = mesh.vertex_colors[tri[0]];
+            Vector3 c1 = mesh.vertex_colors[tri[1]];
+            Vector3 c2 = mesh.vertex_colors[tri[2]];
+
+            Vector4 p0h{p0.x, p0.y, p0.z, 1.0};
+            Vector4 p1h{p1.x, p1.y, p1.z, 1.0};
+            Vector4 p2h{p2.x, p2.y, p2.z, 1.0};
+
+            Matrix4x4 model = mesh.model_matrix;
+
+            Vector4 p0Clip = (clip * (view * (model * p0h)));
+            Vector4 p1Clip = (clip * (view * (model * p1h)));
+            Vector4 p2Clip = (clip * (view * (model * p2h)));
+
+            Vector4 p0Norm = p0Clip/p0Clip.w;
+            Vector4 p1Norm = p1Clip/p1Clip.w;
+            Vector4 p2Norm = p2Clip/p2Clip.w;
+
+            if(p0Norm.z <= 1 && p0Norm.z >= -1 && p1Norm.z <= 1 && p1Norm.z >= -1 && p2Norm.z <= 1 && p2Norm.z >= -1){
+                Vector2 p0Screen{(img.width * (p0Norm.x + 1.0))/2.0, (img.height * (1.0 - p0Norm.y))/2.0};
+                Vector2 p1Screen{(img.width * (p1Norm.x + 1.0))/2.0, (img.height * (1.0 - p1Norm.y))/2.0};
+                Vector2 p2Screen{(img.width * (p2Norm.x + 1.0))/2.0, (img.height * (1.0 - p2Norm.y))/2.0};
+                std::vector<Vector3> vec{p0, p1, p2};
+                std::vector<Vector3> cor{c0, c1, c2};
+                hw1::Triangle tri{p0Screen, p1Screen, p2Screen, Vector3(), Real(1), Matrix3x3::identity()};
+                img = draw_projected_triangle(tri, vec, img, zbuf, zcol, cor, true);
+            }
         }
     }
+
+    
     return img;
 }
 
