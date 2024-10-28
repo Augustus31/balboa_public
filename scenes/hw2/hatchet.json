@@ -1,0 +1,30 @@
+{
+    "camera":
+    {
+        "resolution": [640, 480],
+        "transform": [
+            {
+                "lookat":
+                {
+                    "position": [1.5, 5, 0],
+                    "target": [-2, -4, -5],
+                    "up": [0, 1, 0]
+                }
+            }
+        ],
+        "s": 1,
+        "z_near": 1e-6
+    },
+    "background": [
+        0.3, 0.45, 0.7
+    ],
+    "objects": [
+        {
+            "filename": "hatchet.ply",
+            "transform": [
+                {"scale": [1, 1, 1]},
+                {"translate": [0, 0, -3]}
+            ]
+        }
+    ]
+}

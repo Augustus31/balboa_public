@@ -5,7 +5,7 @@
 using namespace hw2;
 Matrix4x4 createClipMatrix(double s, double a, double f, double near);
 Image3 fill_color(hw1::Shape s, Image3 img, bool antialias, bool alpha);
-Image3 draw_projected_triangle(hw1::Shape s, std::vector<Vector3> orig, Image3 img, Image<double>& zbuf, Image3& zcol, std::vector<Vector3> colors, bool antialias);
+Image3 draw_projected_triangle(hw1::Shape s, std::vector<Vector4> orig, Image3 img, Image<double>& zbuf, Image3& zcol, std::vector<Vector3> colors, bool antialias);
 
 
 Matrix4x4 createClipMatrix(double s, double a, double f, double near){
@@ -13,7 +13,7 @@ Matrix4x4 createClipMatrix(double s, double a, double f, double near){
     return ret;
 }
 
-Image3 draw_projected_triangle(hw1::Shape s, std::vector<Vector3> orig, Image3 img, Image<double>& zbuf, Image3& zcol, std::vector<Vector3> colors, bool antialias){
+Image3 draw_projected_triangle(hw1::Shape s, std::vector<Vector4> orig, Image3 img, Image<double>& zbuf, Image3& zcol, std::vector<Vector3> colors, bool antialias){
     Vector2 res{img.width, img.height};
     if (auto *triangle = std::get_if<hw1::Triangle>(&s)){
         hw1::Triangle &tri = *triangle;
@@ -57,11 +57,11 @@ Image3 draw_projected_triangle(hw1::Shape s, std::vector<Vector3> orig, Image3 i
                                 Real b1p = length((cross((p23 - p03), (p3 - p03))))/length((cross((p23 - p03), (p13 - p03))));
                                 Real b2p = length((cross((p3 - p03), (p13 - p03))))/length((cross((p23 - p03), (p13 - p03))));
 
-                                Real B = b0p/orig[0].z + b1p/orig[1].z + b2p/orig[2].z;
+                                Real B = b0p/(orig[0].z) + b1p/(orig[1].z) + (b2p/orig[2].z);
 
-                                Real b0 = b0p/orig[0].z/B;
-                                Real b1 = b1p/orig[1].z/B;
-                                Real b2 = b2p/orig[2].z/B;
+                                Real b0 = (b0p/orig[0].z)/B;
+                                Real b1 = (b1p/orig[1].z)/B;
+                                Real b2 = (b2p/orig[2].z)/B;
 
                                 Real depth = b0 * orig[0].z + b1 * orig[1].z + b2 * orig[2].z;
 
@@ -108,20 +108,36 @@ Image3 draw_projected_triangle(hw1::Shape s, std::vector<Vector3> orig, Image3 i
                             Vector3 p03{tri.p0.x, tri.p0.y, Real(1)};
                             Vector3 p13{tri.p1.x, tri.p1.y, Real(1)};
                             Vector3 p23{tri.p2.x, tri.p2.y, Real(1)};
-                            Vector3 p3{Real(x+0.5), Real(y+0.5), Real(-1)};
+                            Vector3 p3{Real(x+0.5), Real(y+0.5), Real(1)};
 
                             Real b0p = length((cross((p23 - p3), (p13 - p3))))/length((cross((p23 - p03), (p13 - p03))));
                             Real b1p = length((cross((p23 - p03), (p3 - p03))))/length((cross((p23 - p03), (p13 - p03))));
                             Real b2p = length((cross((p3 - p03), (p13 - p03))))/length((cross((p23 - p03), (p13 - p03))));
 
-                            Real B = b0p/orig[0].z + b1p/orig[1].z + b2p/orig[2].z;
+                            Real B = b0p/(orig[0].z) + b1p/(orig[1].z) + b2p/(orig[2].z);
 
-                            Real b0 = b0p/orig[0].z/B;
-                            Real b1 = b1p/orig[1].z/B;
-                            Real b2 = b2p/orig[2].z/B;
+                            Real b0 = (b0p/orig[0].z)/B;
+                            Real b1 = (b1p/orig[1].z)/B;
+                            Real b2 = (b2p/orig[2].z)/B;
 
                             Vector3 intCol = b0 * colors[0] + b1 * colors[1] + b2 * colors[2];
                             newCol = intCol * Real(1 - (counter/16.0)) + uncBg * Real((counter/16.0));
+
+                            if(b0 < 0 || b1 < 0 || b2 < 0){
+                                std::cout << newCol.x << " " << newCol.y << " " << newCol.z << "\n";
+                                //std::cout << "b values : " << b0 << " " << b1 << " " << b2 << "\n";
+                                //std::cout << "bp values : " << b0p << " " << b1p << " " << b2p << "\n";
+                                //std::cout << "bp sum : " << b0p + b1p + b2p << "\n";
+
+                                Vector2 p0Norm{((p03.x * 2.0 / Real(img.width)) - 1.0) * (Real(img.width)/img.height), 1.0 - (p03.y * 2.0 / Real(img.height))};
+                                Vector2 p1Norm{((p13.x * 2.0 / Real(img.width)) - 1.0) * (Real(img.width)/img.height), 1.0 - (p13.y * 2.0 / Real(img.height))};
+                                Vector2 p2Norm{((p23.x * 2.0 / Real(img.width)) - 1.0) * (Real(img.width)/img.height), 1.0 - (p23.y * 2.0 / Real(img.height))};
+
+                                std::cout << "projected pts : " << p03 << " " << p13 << " " << p23 << " " << p3 << "\n";
+                                std::cout << "non-matrix-proj pts : " << -1.0*orig[0]/orig[0].z << " " << -1.0*orig[1]/orig[1].z << " " << -1.0*orig[2]/orig[2].z  << "\n";
+                                std::cout << "matrix-proj pts : " << p0Norm << " " << p1Norm << " " << p2Norm  << "\n";
+                                std::cout << "-----------------------------------\n";
+                            }
                         }
                     }
                     img(x,y) = newCol;
@@ -316,7 +332,7 @@ Image3 hw_2_2(const std::vector<std::string> &params) {
             Vector2 p0Screen{(img.width * (p0Norm.x + 1.0))/2.0, (img.height * (1.0 - p0Norm.y))/2.0};
             Vector2 p1Screen{(img.width * (p1Norm.x + 1.0))/2.0, (img.height * (1.0 - p1Norm.y))/2.0};
             Vector2 p2Screen{(img.width * (p2Norm.x + 1.0))/2.0, (img.height * (1.0 - p2Norm.y))/2.0};
-            std::vector<Vector3> vec{p0, p1, p2};
+            std::vector<Vector4> vec{p0h, p1h, p2h};
             std::vector<Vector3> cor;
             hw1::Triangle tri{p0Screen, p1Screen, p2Screen, color, Real(1), Matrix3x3::identity()};
             img = draw_projected_triangle(tri, vec, img, zbuf, zcol, cor, true);
@@ -396,7 +412,7 @@ Image3 hw_2_3(const std::vector<std::string> &params) {
             Vector2 p0Screen{(img.width * (p0Norm.x + 1.0))/2.0, (img.height * (1.0 - p0Norm.y))/2.0};
             Vector2 p1Screen{(img.width * (p1Norm.x + 1.0))/2.0, (img.height * (1.0 - p1Norm.y))/2.0};
             Vector2 p2Screen{(img.width * (p2Norm.x + 1.0))/2.0, (img.height * (1.0 - p2Norm.y))/2.0};
-            std::vector<Vector3> vec{p0, p1, p2};
+            std::vector<Vector4> vec{p0h, p1h, p2h};
             std::vector<Vector3> cor{c0, c1, c2};
             hw1::Triangle tri{p0Screen, p1Screen, p2Screen, color, Real(1), Matrix3x3::identity()};
             img = draw_projected_triangle(tri, vec, img, zbuf, zcol, cor, true);
@@ -427,6 +443,7 @@ Image3 hw_2_4(const std::vector<std::string> &params) {
     Matrix4x4 view = inverse(scene.camera.cam_to_world);
 
     for(TriangleMesh mesh : scene.meshes){
+        //std::cout << "new mesh";
 
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
@@ -469,7 +486,7 @@ Image3 hw_2_4(const std::vector<std::string> &params) {
                 Vector2 p0Screen{(img.width * (p0Norm.x + 1.0))/2.0, (img.height * (1.0 - p0Norm.y))/2.0};
                 Vector2 p1Screen{(img.width * (p1Norm.x + 1.0))/2.0, (img.height * (1.0 - p1Norm.y))/2.0};
                 Vector2 p2Screen{(img.width * (p2Norm.x + 1.0))/2.0, (img.height * (1.0 - p2Norm.y))/2.0};
-                std::vector<Vector3> vec{p0, p1, p2};
+                std::vector<Vector4> vec{view * (model * p0h), view * (model * p1h), view * (model * p2h)};
                 std::vector<Vector3> cor{c0, c1, c2};
                 hw1::Triangle tri{p0Screen, p1Screen, p2Screen, Vector3(), Real(1), Matrix3x3::identity()};
                 img = draw_projected_triangle(tri, vec, img, zbuf, zcol, cor, true);
