@@ -3,13 +3,13 @@
 #include "hw1_scenes.h"
 
 using namespace hw2;
-Matrix4x4 createClipMatrix(double s, double a, double f, double near);
+Matrix4x4 createClipMatrix(double s, double a, double f, double near, double far);
 Image3 fill_color(hw1::Shape s, Image3 img, bool antialias, bool alpha);
 Image3 draw_projected_triangle(hw1::Shape s, std::vector<Vector4> orig, Image3 img, Image<double>& zbuf, Image3& zcol, std::vector<Vector3> colors, bool antialias);
 
 
-Matrix4x4 createClipMatrix(double s, double a, double f, double near){
-    Matrix4x4 ret{f/(s*a), 0.0, 0.0, 0.0, 0.0, f/s, 0.0, 0.0, 0.0, 0.0, -1.0, -2*near, 0.0, 0.0, -1.0, 0.0};
+Matrix4x4 createClipMatrix(double s, double a, double f, double near, double far){
+    Matrix4x4 ret{f/(s*a), 0.0, 0.0, 0.0, 0.0, f/s, 0.0, 0.0, 0.0, 0.0, -(far + near)/(far - near), -2*far*near/(far - near), 0.0, 0.0, -1.0, 0.0};
     return ret;
 }
 
@@ -209,6 +209,7 @@ Image3 hw_2_1(const std::vector<std::string> &params) {
     Real s = 1; // scaling factor of the view frustrum
     Vector3 color = Vector3{1.0, 0.5, 0.5};
     Real z_near = 1e-6; // distance of the near clipping plane
+    Real z_far = 10;
     for (int i = 0; i < (int)params.size(); i++) {
         if (params[i] == "-s") {
             s = std::stof(params[++i]);
@@ -244,7 +245,7 @@ Image3 hw_2_1(const std::vector<std::string> &params) {
     Vector4 p1h{p1.x, p1.y, p1.z, 1.0};
     Vector4 p2h{p2.x, p2.y, p2.z, 1.0};
 
-    Matrix4x4 clip = createClipMatrix(s, (double)img.width/img.height, 1.0, z_near);
+    Matrix4x4 clip = createClipMatrix(s, ((double)img.width)/img.height, 1.0, z_near, z_far);
     Vector4 p0Clip = clip * p0h;
     Vector4 p1Clip = clip * p1h;
     Vector4 p2Clip = clip * p2h;
@@ -260,6 +261,121 @@ Image3 hw_2_1(const std::vector<std::string> &params) {
         hw1::Triangle tri{p0Screen, p1Screen, p2Screen, color, Real(1), Matrix3x3::identity()};
         img = fill_color(tri, img, true, false);
     }
+    else{
+        std::vector<Vector4> pts{p0Norm, p1Norm, p2Norm};
+        std::vector<Vector4> outside;
+        std::vector<Vector4> inside;
+        for(Vector4 pt : pts){
+            if(pt.z < -1 || pt.z > 1){
+                outside.push_back(pt);
+            }
+            else{
+                inside.push_back(pt);
+            }
+        }
+
+        std::cout << p0Norm << " " << p1Norm << " " << p2Norm << "\n";
+
+        if(outside.size() == 1){
+            Vector4 vec1 = outside[0] - inside[0];
+            Vector4 vec2 = outside[0] - inside[1];
+
+            Vector4 int1;
+            Vector4 int2;
+            if(outside[0].z > 1){
+                int1 = {-vec1.x * (inside[0].z - 1) / vec1.z + inside[0].x, -vec1.y * (inside[0].z - 1) / vec1.z + inside[0].y, 1.0, 1.0};
+                int2 = {-vec2.x * (inside[1].z - 1) / vec2.z + inside[1].x, -vec2.y * (inside[1].z - 1) / vec2.z + inside[1].y, 1.0, 1.0};
+            }
+            else{
+                int1 = {-vec1.x * (inside[0].z + 1) / vec1.z + inside[0].x, -vec1.y * (inside[0].z + 1) / vec1.z + inside[0].y, -1.0, 1.0};
+                int2 = {-vec2.x * (inside[1].z + 1) / vec2.z + inside[1].x, -vec2.y * (inside[1].z + 1) / vec2.z + inside[1].y, -1.0, 1.0};
+            }
+
+            std::cout << inside[0] << " " << inside[1] << " " << int1 << " " << int2 << "\n"; 
+
+            Vector2 p0Screen{(img.width * (inside[0].x + 1.0))/2.0, (img.height * (1.0 - inside[0].y))/2.0};
+            Vector2 p1Screen{(img.width * (int1.x + 1.0))/2.0, (img.height * (1.0 - int1.y))/2.0};
+            Vector2 p2Screen{(img.width * (int2.x + 1.0))/2.0, (img.height * (1.0 - int2.y))/2.0};
+            hw1::Triangle tri{p0Screen, p1Screen, p2Screen, color, Real(1), Matrix3x3::identity()};
+            img = fill_color(tri, img, true, false);
+
+            Vector2 p0Screen2{(img.width * (inside[0].x + 1.0))/2.0, (img.height * (1.0 - inside[0].y))/2.0};
+            Vector2 p1Screen2{(img.width * (int2.x + 1.0))/2.0, (img.height * (1.0 - int2.y))/2.0};
+            Vector2 p2Screen2{(img.width * (inside[1].x + 1.0))/2.0, (img.height * (1.0 - inside[1].y))/2.0};
+            hw1::Triangle tri2{p0Screen2, p1Screen2, p2Screen2, color, Real(1), Matrix3x3::identity()};
+            img = fill_color(tri2, img, true, false);
+        }
+        else if(outside.size() == 2 && ((outside[0].z < -1 && outside[1].z < -1) || (outside[0].z > 1 && outside[1].z > 1))){
+            Vector4 vec1 = outside[0] - inside[0];
+            Vector4 vec2 = outside[1] - inside[0];
+
+            Vector4 int1;
+            Vector4 int2;
+            if(outside[0].z < -1 && outside[1].z < -1){
+                int1 = {-vec1.x * (inside[0].z + 1) / vec1.z + inside[0].x, -vec1.y * (inside[0].z + 1) / vec1.z + inside[0].y, -1.0, 1.0};
+                int2 = {-vec2.x * (inside[0].z + 1) / vec2.z + inside[0].x, -vec2.y * (inside[0].z + 1) / vec2.z + inside[0].y, -1.0, 1.0};
+            }
+            else{
+                int1 = {-vec1.x * (inside[0].z - 1) / vec1.z + inside[0].x, -vec1.y * (inside[0].z - 1) / vec1.z + inside[0].y, 1.0, 1.0};
+                int2 = {-vec2.x * (inside[0].z - 1) / vec2.z + inside[0].x, -vec2.y * (inside[0].z - 1) / vec2.z + inside[0].y, 1.0, 1.0};
+            }
+
+            Vector2 p0Screen{(img.width * (inside[0].x + 1.0))/2.0, (img.height * (1.0 - inside[0].y))/2.0};
+            Vector2 p1Screen{(img.width * (int1.x + 1.0))/2.0, (img.height * (1.0 - int1.y))/2.0};
+            Vector2 p2Screen{(img.width * (int2.x + 1.0))/2.0, (img.height * (1.0 - int2.y))/2.0};
+            hw1::Triangle tri{p0Screen, p1Screen, p2Screen, color, Real(1), Matrix3x3::identity()};
+            img = fill_color(tri, img, true, false);
+
+        }
+        else if(outside.size() == 2){
+            Vector4 near;
+            Vector4 far;
+
+            if(outside[0].z < -1){
+                near = outside[0];
+                far = outside[1];
+            }
+            else{
+                near = outside[1];
+                far = outside[0];
+            }
+
+            Vector4 vec1 = near - far;
+            Vector4 vec2 = near - inside[0];
+
+            Vector4 int1;
+            Vector4 int2;
+            int1 = {-vec1.x * (near.z + 1) / vec1.z + near.x, -vec1.y * (near.z + 1) / vec1.z + near.y, -1.0, 1.0};
+            int2 = {-vec2.x * (near.z + 1) / vec2.z + near.x, -vec2.y * (near.z + 1) / vec2.z + near.y, -1.0, 1.0};
+
+            Vector4 vec3 = far - near;
+            Vector4 vec4 = far - inside[0];
+
+            Vector4 int3;
+            Vector4 int4;
+            int3 = {-vec1.x * (far.z - 1) / vec1.z + far.x, -vec1.y * (far.z - 1) / vec1.z + far.y, 1.0, 1.0};
+            int4 = {-vec2.x * (far.z - 1) / vec2.z + far.x, -vec2.y * (far.z - 1) / vec2.z + far.y, 1.0, 1.0};
+
+            Vector2 p0Screen{(img.width * (int3.x + 1.0))/2.0, (img.height * (1.0 - int3.y))/2.0};
+            Vector2 p1Screen{(img.width * (int4.x + 1.0))/2.0, (img.height * (1.0 - int4.y))/2.0};
+            Vector2 p2Screen{(img.width * (inside[0].x + 1.0))/2.0, (img.height * (1.0 - inside[0].y))/2.0};
+            hw1::Triangle tri{p0Screen, p1Screen, p2Screen, color, Real(1), Matrix3x3::identity()};
+            img = fill_color(tri, img, true, false);
+
+            Vector2 p0Screen2{(img.width * (int1.x + 1.0))/2.0, (img.height * (1.0 - int1.y))/2.0};
+            Vector2 p1Screen2{(img.width * (int3.x + 1.0))/2.0, (img.height * (1.0 - int3.y))/2.0};
+            Vector2 p2Screen2{(img.width * (inside[0].x + 1.0))/2.0, (img.height * (1.0 - inside[0].y))/2.0};
+            hw1::Triangle tri2{p0Screen2, p1Screen2, p2Screen2, color, Real(1), Matrix3x3::identity()};
+            img = fill_color(tri2, img, true, false);
+
+            Vector2 p0Screen3{(img.width * (int2.x + 1.0))/2.0, (img.height * (1.0 - int2.y))/2.0};
+            Vector2 p1Screen3{(img.width * (int1.x + 1.0))/2.0, (img.height * (1.0 - int1.y))/2.0};
+            Vector2 p2Screen3{(img.width * (inside[0].x + 1.0))/2.0, (img.height * (1.0 - inside[0].y))/2.0};
+            hw1::Triangle tri3{p0Screen3, p1Screen3, p2Screen3, color, Real(1), Matrix3x3::identity()};
+            img = fill_color(tri3, img, true, false);
+
+        }
+    }
 
 
 
@@ -273,6 +389,7 @@ Image3 hw_2_2(const std::vector<std::string> &params) {
 
     Real s = 1; // scaling factor of the view frustrum
     Real z_near = 1e-6; // distance of the near clipping plane
+    Real z_far = 50;
     int scene_id = 0;
     for (int i = 0; i < (int)params.size(); i++) {
         if (params[i] == "-s") {
@@ -319,7 +436,7 @@ Image3 hw_2_2(const std::vector<std::string> &params) {
         Vector4 p1h{p1.x, p1.y, p1.z, 1.0};
         Vector4 p2h{p2.x, p2.y, p2.z, 1.0};
 
-        Matrix4x4 clip = createClipMatrix(s, (double)img.width/img.height, 1.0, z_near);
+        Matrix4x4 clip = createClipMatrix(s, (double)img.width/img.height, 1.0, z_near, z_far);
         Vector4 p0Clip = clip * p0h;
         Vector4 p1Clip = clip * p1h;
         Vector4 p2Clip = clip * p2h;
@@ -349,6 +466,7 @@ Image3 hw_2_3(const std::vector<std::string> &params) {
 
     Real s = 1; // scaling factor of the view frustrum
     Real z_near = 1e-6; // distance of the near clipping plane
+    Real z_far = 50;
     int scene_id = 0;
     for (int i = 0; i < (int)params.size(); i++) {
         if (params[i] == "-s") {
@@ -399,7 +517,7 @@ Image3 hw_2_3(const std::vector<std::string> &params) {
         Vector4 p1h{p1.x, p1.y, p1.z, 1.0};
         Vector4 p2h{p2.x, p2.y, p2.z, 1.0};
 
-        Matrix4x4 clip = createClipMatrix(s, (double)img.width/img.height, 1.0, z_near);
+        Matrix4x4 clip = createClipMatrix(s, (double)img.width/img.height, 1.0, z_near, z_far);
         Vector4 p0Clip = clip * p0h;
         Vector4 p1Clip = clip * p1h;
         Vector4 p2Clip = clip * p2h;
@@ -437,9 +555,10 @@ Image3 hw_2_4(const std::vector<std::string> &params) {
     
     Real s = scene.camera.s;
     Real z_near = scene.camera.z_near;
+    Real z_far = 50;
     Vector3 bg = scene.background;
 
-    Matrix4x4 clip = createClipMatrix(s, (double)img.width/img.height, 1.0, z_near);
+    Matrix4x4 clip = createClipMatrix(s, (double)img.width/img.height, 1.0, z_near, z_far);
     Matrix4x4 view = inverse(scene.camera.cam_to_world);
 
     for(TriangleMesh mesh : scene.meshes){
