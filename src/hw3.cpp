@@ -124,6 +124,7 @@ void hw_3_2(const std::vector<std::string> &params) {
     }    
 
     glViewport(0, 0, 1280, 720);
+    glEnable(GL_FRAMEBUFFER_SRGB);
 
     //Register callbacks here
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -203,12 +204,12 @@ void hw_3_3(const std::vector<std::string> &params) {
     float aspect = ((float)resx)/resy;
 
     glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f, 0.0f); 
-    glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
     glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f, 0.0f);
     
     float s = scene.camera.s;
     float z_near = scene.camera.z_near;
-    float z_far = 100.0;
+    float z_far = scene.camera.z_far;
     Vector3 bg = scene.background;
 
     glfwInit();
@@ -233,6 +234,7 @@ void hw_3_3(const std::vector<std::string> &params) {
     }    
 
     glEnable(GL_MULTISAMPLE);  
+    glEnable(GL_FRAMEBUFFER_SRGB);
     glViewport(0, 0, resx, resy);
 
     //Register callbacks here
@@ -243,6 +245,8 @@ void hw_3_3(const std::vector<std::string> &params) {
 
     unsigned int VAOs[scene.meshes.size()];
     int count = 0;
+
+    std::cout << scene.meshes.size() << std::endl;
 
     for(TriangleMesh mesh : scene.meshes){
 
@@ -297,6 +301,10 @@ void hw_3_3(const std::vector<std::string> &params) {
         glEnableVertexAttribArray(1); 
 
         count++;
+
+        std::cout << verts[0] << " , size = " << sizeof(verts)/sizeof(float) <<   std::endl;
+        std::cout << indices[10] << " , size = " << sizeof(indices)/sizeof(float) <<   std::endl;
+        std::cout << colors[0] << " , size = " << sizeof(colors)/sizeof(float) <<   std::endl;
         
     }
 
@@ -306,28 +314,32 @@ void hw_3_3(const std::vector<std::string> &params) {
     glm::mat4 cw = glm::mat4(1.0f);
     for(int i = 0; i < 4; i++){
         for(int j = 0; j < 4; j++){
+            //std::cout << CW(i, j) << " ";
             cw[j][i] = CW(i, j);
         }
+        //std::cout << std::endl;
     }
 
     glm::mat4 viewDirect = glm::inverse(cw);
-    std::cout << glm::to_string(viewDirect) << "          ";
+    //std::cout << glm::to_string(viewDirect) << "          " << std::endl << std::endl;
 
-    glm::vec4 camPos(0.0, 0.0, 0.0, 1.0);
-    glm::vec4 camDir(0.0, 0.0, -1.0, 0.0);
-    glm::vec4 worldCamPos = cw * camPos;
-    glm::vec4 worldCamDir = cw * camDir;
+    // glm::vec4 camPos(0.0, 0.0, 0.0, 1.0);
+    // glm::vec4 camDir(0.0, 0.0, -1.0, 0.0);
+    // glm::vec4 worldCamPos = cw * camPos;
+    // glm::vec4 worldCamDir = cw * camDir;
 
-    cameraPos.x = worldCamPos.x/worldCamPos.w;
-    cameraPos.y = worldCamPos.y/worldCamPos.w;
-    cameraPos.z = worldCamPos.z/worldCamPos.w;
+    // cameraPos.x = CW(0, 3);
+    // cameraPos.y = CW(1, 3);
+    // cameraPos.z = CW(2, 3);
 
-    cameraFront.x = worldCamDir.x;
-    cameraFront.y = worldCamDir.y;
-    cameraFront.z = worldCamDir.z;
+    // cameraFront.x = -1 * CW(0, 2);
+    // cameraFront.y = -1 * CW(1, 2);
+    // cameraFront.z = -1 * CW(2, 2);
+
+    //std::cout << glm::to_string(cameraPos) << std::endl;
+    //std::cout << glm::to_string(cameraFront) << std::endl;
 
     bool printed = false;
-
     //Render loop
     while(!glfwWindowShouldClose(window))
     {
@@ -342,10 +354,10 @@ void hw_3_3(const std::vector<std::string> &params) {
 
         glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
-        if(!printed){
-            std::cout << glm::to_string(view) << std::endl;
-            printed = true;
-        }
+        // if(!printed){
+        //     std::cout << glm::to_string(view) << std::endl;
+        //     printed = true;
+        // }
         
 
         for(int i = 0; i < scene.meshes.size(); i++){
@@ -363,7 +375,7 @@ void hw_3_3(const std::vector<std::string> &params) {
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 
             int viewLoc = glGetUniformLocation(shader.ID, "view");
-            glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+            glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view * viewDirect));
 
             int projLoc = glGetUniformLocation(shader.ID, "projection");
             glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(proj));
@@ -394,12 +406,12 @@ void hw_3_4(const std::vector<std::string> &params) {
     float aspect = ((float)resx)/resy;
 
     glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f, 0.0f); 
-    glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
     glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f, 0.0f);
     
     float s = scene.camera.s;
     float z_near = scene.camera.z_near;
-    float z_far = 100.0;
+    float z_far = scene.camera.z_far;
     Vector3 bg = scene.background;
 
     glfwInit();
@@ -424,6 +436,7 @@ void hw_3_4(const std::vector<std::string> &params) {
     }    
 
     glEnable(GL_MULTISAMPLE);  
+    glEnable(GL_FRAMEBUFFER_SRGB);
     glViewport(0, 0, resx, resy);
 
     //Register callbacks here
@@ -515,24 +528,24 @@ void hw_3_4(const std::vector<std::string> &params) {
     }
 
     glm::mat4 viewDirect = glm::inverse(cw);
-    std::cout << glm::to_string(viewDirect) << "          ";
+    //std::cout << glm::to_string(viewDirect) << "          ";
 
-    glm::vec4 camPos(0.0, 0.0, 0.0, 1.0);
-    glm::vec4 camDir(0.0, 0.0, -1.0, 0.0);
-    glm::vec4 worldCamPos = cw * camPos;
-    glm::vec4 worldCamDir = cw * camDir;
+    // glm::vec4 camPos(0.0, 0.0, 0.0, 1.0);
+    // glm::vec4 camDir(0.0, 0.0, -1.0, 0.0);
+    // glm::vec4 worldCamPos = cw * camPos;
+    // glm::vec4 worldCamDir = cw * camDir;
 
-    cameraPos.x = worldCamPos.x/worldCamPos.w;
-    cameraPos.y = worldCamPos.y/worldCamPos.w;
-    cameraPos.z = worldCamPos.z/worldCamPos.w;
+    // cameraPos.x = worldCamPos.x/worldCamPos.w;
+    // cameraPos.y = worldCamPos.y/worldCamPos.w;
+    // cameraPos.z = worldCamPos.z/worldCamPos.w;
 
-    cameraFront.x = worldCamDir.x;
-    cameraFront.y = worldCamDir.y;
-    cameraFront.z = worldCamDir.z;
+    // cameraFront.x = worldCamDir.x;
+    // cameraFront.y = worldCamDir.y;
+    // cameraFront.z = worldCamDir.z;
 
     //lighting variables
-    glm::vec3 lightColor(0.6, 0.6, 0.6);
-    glm::vec3 lightDir = glm::normalize(glm::vec3(1.0, 1.0, -1.0));
+    glm::vec3 lightColor(1.0, 1.0, 1.0);
+    glm::vec3 lightDir = glm::normalize(glm::vec3(1.0, 1.0, 1.0));
 
     //Render loop
     while(!glfwWindowShouldClose(window))
@@ -563,7 +576,7 @@ void hw_3_4(const std::vector<std::string> &params) {
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 
             int viewLoc = glGetUniformLocation(shader.ID, "view");
-            glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+            glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view * viewDirect));
 
             int projLoc = glGetUniformLocation(shader.ID, "projection");
             glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(proj));
