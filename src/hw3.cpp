@@ -323,23 +323,6 @@ void hw_3_3(const std::vector<std::string> &params) {
     glm::mat4 viewDirect = glm::inverse(cw);
     //std::cout << glm::to_string(viewDirect) << "          " << std::endl << std::endl;
 
-    // glm::vec4 camPos(0.0, 0.0, 0.0, 1.0);
-    // glm::vec4 camDir(0.0, 0.0, -1.0, 0.0);
-    // glm::vec4 worldCamPos = cw * camPos;
-    // glm::vec4 worldCamDir = cw * camDir;
-
-    // cameraPos.x = CW(0, 3);
-    // cameraPos.y = CW(1, 3);
-    // cameraPos.z = CW(2, 3);
-
-    // cameraFront.x = -1 * CW(0, 2);
-    // cameraFront.y = -1 * CW(1, 2);
-    // cameraFront.z = -1 * CW(2, 2);
-
-    //std::cout << glm::to_string(cameraPos) << std::endl;
-    //std::cout << glm::to_string(cameraFront) << std::endl;
-
-    bool printed = false;
     //Render loop
     while(!glfwWindowShouldClose(window))
     {
@@ -353,11 +336,6 @@ void hw_3_3(const std::vector<std::string> &params) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-
-        // if(!printed){
-        //     std::cout << glm::to_string(view) << std::endl;
-        //     printed = true;
-        // }
         
 
         for(int i = 0; i < scene.meshes.size(); i++){
@@ -448,8 +426,6 @@ void hw_3_4(const std::vector<std::string> &params) {
     unsigned int VAOs[scene.meshes.size()];
     int count = 0;
 
-    //test comme
-
     for(TriangleMesh mesh : scene.meshes){
 
         //filling arrays for vertices, colors, and indices
@@ -528,23 +504,12 @@ void hw_3_4(const std::vector<std::string> &params) {
     }
 
     glm::mat4 viewDirect = glm::inverse(cw);
+    glm::vec3 origCamPos(cw[3].x, cw[3].y, cw[3].z);
     //std::cout << glm::to_string(viewDirect) << "          ";
-
-    // glm::vec4 camPos(0.0, 0.0, 0.0, 1.0);
-    // glm::vec4 camDir(0.0, 0.0, -1.0, 0.0);
-    // glm::vec4 worldCamPos = cw * camPos;
-    // glm::vec4 worldCamDir = cw * camDir;
-
-    // cameraPos.x = worldCamPos.x/worldCamPos.w;
-    // cameraPos.y = worldCamPos.y/worldCamPos.w;
-    // cameraPos.z = worldCamPos.z/worldCamPos.w;
-
-    // cameraFront.x = worldCamDir.x;
-    // cameraFront.y = worldCamDir.y;
-    // cameraFront.z = worldCamDir.z;
 
     //lighting variables
     glm::vec3 lightColor(1.0, 1.0, 1.0);
+    // float angle = 0;
     glm::vec3 lightDir = glm::normalize(glm::vec3(1.0, 1.0, 1.0));
 
     //Render loop
@@ -560,6 +525,9 @@ void hw_3_4(const std::vector<std::string> &params) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp); 
+        // angle = glfwGetTime();
+        // lightDir.x = 0.75 * glm::sin(angle);
+        // lightDir.y = 0.75 *  glm::cos(angle);
 
         for(int i = 0; i < scene.meshes.size(); i++){
             glBindVertexArray(VAOs[i]);
@@ -588,7 +556,7 @@ void hw_3_4(const std::vector<std::string> &params) {
             glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightDir));
             
             int cameraPosLoc = glGetUniformLocation(shader.ID, "cameraPos");
-            glUniform3fv(cameraPosLoc, 1, glm::value_ptr(cameraPos));
+            glUniform3fv(cameraPosLoc, 1, glm::value_ptr(origCamPos + cameraPos));
 
             glDrawElements(GL_TRIANGLES, scene.meshes[i].faces.size() * 3, GL_UNSIGNED_INT, 0);
         }
